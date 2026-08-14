@@ -2,6 +2,16 @@
 """检索页：检索条件表单 + 结果表格 + 进度 + 日志面板。"""
 from __future__ import annotations
 
+# 本文件是应用模块，不能单独运行；直接运行给出友好提示而不是报错堆栈
+if __name__ == "__main__":
+    raise SystemExit(
+        "search_page.py 是 GUI 应用的一个页面模块，不能直接运行。\n"
+        "请在项目根目录运行：\n"
+        "    python -m gui.main\n"
+        "（Windows 也可以直接双击「启动GUI.bat」）"
+    )
+
+import re
 from pathlib import Path
 
 from loguru import logger
@@ -16,11 +26,11 @@ from gui.exporter import default_filename, export_records_csv
 from gui.log_bridge import get_emitter
 from gui.table_model import COL_WIDTHS, NoticeTableModel
 from gui.workers import SearchWorker
-from qfluentwidgets import (BodyLabel, CardWidget, ComboBox, FastCalendarPicker,
-                            FluentIcon, InfoBar, InfoBarPosition,
-                            PrimaryPushButton, ProgressBar, PushButton,
-                            SpinBox, StateToolTip, StrongBodyLabel, TableView,
-                            TextBrowser, TextEdit)
+from qfluentwidgets import (BodyLabel, CaptionLabel, CardWidget, ComboBox,
+                            FastCalendarPicker, FluentIcon, InfoBar,
+                            InfoBarPosition, PrimaryPushButton, ProgressBar,
+                            PushButton, SpinBox, StateToolTip,
+                            StrongBodyLabel, TableView, TextBrowser, TextEdit)
 
 # 公告类型预设：text -> codes；None 表示取设置页里的自定义编码
 NOTICE_TYPE_PRESETS = [
@@ -31,6 +41,12 @@ NOTICE_TYPE_PRESETS = [
 ]
 _PURCHASE_NATURES = [("服务", "3"), ("货物", "1"), ("工程", "2")]
 _LOG_MAX_BLOCKS = 2000
+
+
+def parse_keywords(text: str) -> list[str]:
+    """把输入解析为关键词列表：支持换行、中英文逗号、顿号、分号分隔。"""
+    parts = re.split(r"[\n\r，,、;；]+", text)
+    return [p.strip() for p in parts if p and p.strip()]
 
 
 class SearchPage(QWidget):
@@ -71,8 +87,19 @@ class SearchPage(QWidget):
 
         self.kw_label = BodyLabel("关键词", form_card)
         self.kw_edit = TextEdit(form_card)
-        self.kw_edit.setPlaceholderText("每行一个标题关键词，例如：\n档案数字化\n病案数字化\n档案整理")
-        self.kw_edit.setFixedHeight(88)
+        self.kw_edit.setPlaceholderText(
+            "每行一个标题关键词，例如：\n档案数字化\n病案数字化\n档案整理")
+        self.kw_edit.setFixedHeight(80)
+        kw_cell = QWidget(form_card)
+        kw_cell_layout = QVBoxLayout(kw_cell)
+        kw_cell_layout.setContentsMargins(0, 0, 0, 0)
+        kw_cell_layout.setSpacing(2)
+        kw_cell_layout.addWidget(self.kw_edit)
+        self.kw_hint = CaptionLabel(
+            "已识别 0 个关键词（每行一个，也支持逗号/顿号分隔，逐个检索后合并去重）",
+            kw_cell)
+        kw_cell_layout.addWidget(self.kw_hint)
+        self.kw_edit.textChanged.connect(self._update_kw_hint)
 
         self.start_label = BodyLabel("发布时间起", form_card)
         self.start_date = FastCalendarPicker(form_card)
@@ -105,7 +132,7 @@ class SearchPage(QWidget):
             self.notice_type_combo.addItem(text, userData=codes)
 
         grid.addWidget(self.kw_label, 0, 0)
-        grid.addWidget(self.kw_edit, 0, 1, 1, 5)
+        grid.addWidget(kw_cell, 0, 1, 1, 5)
         grid.addWidget(self.start_label, 1, 0)
         grid.addWidget(self.start_date, 1, 1)
         grid.addWidget(self.end_label, 1, 2)
@@ -175,6 +202,7 @@ class SearchPage(QWidget):
         self.run_btn.clicked.connect(self._on_run)
         self.stop_btn.clicked.connect(self._on_stop)
         self.export_btn.clicked.connect(self._on_export)
+        self._update_kw_hint()
 
     def _install_copy_shortcut(self) -> None:
         shortcut = QShortcut(QKeySequence.StandardKey.Copy, self.table)
@@ -185,8 +213,7 @@ class SearchPage(QWidget):
     def _on_run(self) -> None:
         if self.worker is not None and self.worker.isRunning():
             return
-        keywords = [ln.strip() for ln in self.kw_edit.toPlainText().splitlines()
-                    if ln.strip()]
+        keywords = parse_keywords(self.kw_edit.toPlainText())
         if not keywords:
             InfoBar.warning("请先填写关键词", "每行一个关键词", parent=self.window())
             return
@@ -260,6 +287,12 @@ class SearchPage(QWidget):
         InfoBar.success("导出成功", f"{len(records)} 条 → {out_path}",
                         duration=5000, parent=self.window())
         logger.info("已导出 {n} 条到 {p}", n=len(records), p=out_path)
+
+    def _update_kw_hint(self) -> None:
+        count = len(parse_keywords(self.kw_edit.toPlainText()))
+        self.kw_hint.setText(
+            f"已识别 {count} 个关键词（每行一个，也支持逗号/顿号分隔，"
+            f"逐个检索后合并去重）")
 
     def load_task_params(self, task_id: int) -> None:
         """从历史任务回填检索表单（用于「重新检索」）。"""
