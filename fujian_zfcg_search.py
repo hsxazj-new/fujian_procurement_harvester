@@ -127,8 +127,12 @@ class FujianZfcg:
     def search(self, keyword: str, *, start: str = "", end: str = "",
                purchase_nature: str = "3", channel: str = DEFAULT_CHANNEL,
                page_size: int = 10, max_pages: int = 1,
-               notice_type: str = DEFAULT_NOTICE_TYPE, retry: int = 8) -> list:
-        """按标题关键词检索公告，返回行数据列表。"""
+               notice_type: str = DEFAULT_NOTICE_TYPE, retry: int = 8,
+               should_stop=None) -> dict:
+        """按标题关键词检索公告，返回 {keyword, total, rows}。
+
+        should_stop: 可选回调，返回 True 时提前结束翻页（GUI 停止按钮使用）。
+        """
         site_id = self.get_site_id()
         params = {
             "channel": channel,
@@ -148,6 +152,8 @@ class FujianZfcg:
         rows, total = [], None
         path = "/gpcms/rest/web/v2/info/selectInfoForIndex"
         for page in range(1, max_pages + 1):
+            if should_stop is not None and should_stop():
+                break
             params["currPage"] = page
             for attempt in range(1, retry + 1):
                 params["verifyCode"] = self._captcha_code()

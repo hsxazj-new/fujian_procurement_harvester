@@ -4,3 +4,8 @@ requests
 ddddocr
 pillow
 cryptography
+loguru
+
+# GUI（PySide6 版 Fluent 控件；Windows 下会自动带上 PySideSix-Frameless-Window / pywin32）
+PySide6>=6.6
+PySide6-Fluent-Widgets>=1.7

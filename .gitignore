@@ -1,5 +1,12 @@
-cache
+# Python
+__pycache__/
+*.pyc
 
+# 运行产物
+data/
+logs/
 *.csv
 
-.idea
+# IDE
+.idea/
+.vscode/

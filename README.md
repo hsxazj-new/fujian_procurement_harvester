@@ -52,3 +52,45 @@ python fujian_zfcg_search.py --keywords 档案数字化 --purchase-nature 1
 - 数据来源：`/gpcms/rest/web/v2/info/selectInfoForIndex`，即页面「查询」按钮实际调用的接口；
 - 检索逻辑与页面一致：关键词匹配公告标题，叠加采购品目、发布时间过滤；
 - 验证码识别失败会自动刷新重试（最多 8 次）。
+
+## 四、GUI 界面（PySide6 + QFluentWidgets）
+
+提供桌面图形界面，功能与 CLI 一致，并增加了历史记录持久化：
+
+```bash
+python -m gui.main
+```
+
+### 界面组成
+
+| 页面     | 功能                                                         |
+| ------ | ---------------------------------------------------------- |
+| 检索     | 填写关键词（每行一个）、时间范围、采购品目、分页参数，一键检索；实时进度条 + 日志面板；可导出 CSV |
+| 历史记录  | SQLite 持久化的检索任务列表与公告明细，支持重新检索、导出、删除                  |
+| 设置     | 公告类型编码、验证码重试次数、默认导出目录、窗口背景特效（Mica/亚克力）、主题           |
+
+### 技术要点
+
+- **PySide6 + qfluentwidgets**：Fluent Design 风格的界面组件；
+- **Acrylic**：Windows 11 自动使用 Mica 背景，Windows 10 1809+ 使用亚克力（可在设置页关闭）；
+- **SQLite**：任务与公告结果保存在 `data/app.db`，跨次启动保留历史；
+- **QThread**：检索（签名 + 验证码识别 + 翻页）在后台线程执行，界面不卡顿，支持中途停止；
+- **loguru**：日志写入 `logs/` 目录并按天滚动，同时实时显示在界面日志面板。
+
+### 目录结构
+
+```
+gui/
+├── main.py            # 入口（python -m gui.main）
+├── main_window.py     # 主窗口（FluentWindow + Mica/亚克力 + 导航）
+├── config.py          # 应用设置（data/settings.json）
+├── db.py              # SQLite 数据层（任务 / 公告结果）
+├── log_bridge.py      # loguru → Qt 信号桥接
+├── workers.py         # QThread 后台检索线程
+├── exporter.py        # CSV 导出
+├── table_model.py     # 公告结果表格模型
+└── pages/             # 检索页 / 历史页 / 设置页
+```
+
+> 提示：核心检索逻辑仍复用 `fujian_zfcg_search.py`，CLI 用法不变；
+> GUI 版为其新增了 `should_stop` 回调参数以支持界面上的「停止」按钮。
