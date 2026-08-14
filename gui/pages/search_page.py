@@ -12,11 +12,12 @@ from PySide6.QtWidgets import (QGridLayout, QHBoxLayout, QHeaderView,
 
 from fujian_zfcg_search import DEFAULT_NOTICE_TYPE
 from gui.config import get as cfg_get
+from gui.date_edit import CalendarDateEdit
 from gui.exporter import default_filename, export_records_csv
 from gui.log_bridge import get_emitter
 from gui.table_model import COL_WIDTHS, NoticeTableModel
 from gui.workers import SearchWorker
-from qfluentwidgets import (BodyLabel, CardWidget, ComboBox, DateEdit,
+from qfluentwidgets import (BodyLabel, CardWidget, ComboBox,
                             FluentIcon, InfoBar, InfoBarPosition,
                             PrimaryPushButton, ProgressBar, PushButton,
                             SpinBox, StateToolTip, StrongBodyLabel, TableView,
@@ -75,15 +76,11 @@ class SearchPage(QWidget):
         self.kw_edit.setFixedHeight(88)
 
         self.start_label = BodyLabel("发布时间起", form_card)
-        self.start_date = DateEdit(form_card)
-        self.start_date.setCalendarPopup(True)
-        self.start_date.setDisplayFormat("yyyy-MM-dd")
+        self.start_date = CalendarDateEdit(form_card)
         self.start_date.setDate(QDate(2026, 1, 1))
 
         self.end_label = BodyLabel("发布时间止", form_card)
-        self.end_date = DateEdit(form_card)
-        self.end_date.setCalendarPopup(True)
-        self.end_date.setDisplayFormat("yyyy-MM-dd")
+        self.end_date = CalendarDateEdit(form_card)
         self.end_date.setDate(QDate(2026, 12, 31))
 
         self.nature_label = BodyLabel("采购品目", form_card)
