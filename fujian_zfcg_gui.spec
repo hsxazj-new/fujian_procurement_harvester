@@ -128,7 +128,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name="福建政府采购公告采集器",
+    name="福建省政府采购网招投标公告采集器",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
