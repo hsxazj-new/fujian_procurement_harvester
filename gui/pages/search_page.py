@@ -12,12 +12,11 @@ from PySide6.QtWidgets import (QGridLayout, QHBoxLayout, QHeaderView,
 
 from fujian_zfcg_search import DEFAULT_NOTICE_TYPE
 from gui.config import get as cfg_get
-from gui.date_edit import CalendarDateEdit
 from gui.exporter import default_filename, export_records_csv
 from gui.log_bridge import get_emitter
 from gui.table_model import COL_WIDTHS, NoticeTableModel
 from gui.workers import SearchWorker
-from qfluentwidgets import (BodyLabel, CardWidget, ComboBox,
+from qfluentwidgets import (BodyLabel, CardWidget, ComboBox, FastCalendarPicker,
                             FluentIcon, InfoBar, InfoBarPosition,
                             PrimaryPushButton, ProgressBar, PushButton,
                             SpinBox, StateToolTip, StrongBodyLabel, TableView,
@@ -76,11 +75,13 @@ class SearchPage(QWidget):
         self.kw_edit.setFixedHeight(88)
 
         self.start_label = BodyLabel("发布时间起", form_card)
-        self.start_date = CalendarDateEdit(form_card)
+        self.start_date = FastCalendarPicker(form_card)
+        self.start_date.setDateFormat("yyyy-MM-dd")
         self.start_date.setDate(QDate(2026, 1, 1))
 
         self.end_label = BodyLabel("发布时间止", form_card)
-        self.end_date = CalendarDateEdit(form_card)
+        self.end_date = FastCalendarPicker(form_card)
+        self.end_date.setDateFormat("yyyy-MM-dd")
         self.end_date.setDate(QDate(2026, 12, 31))
 
         self.nature_label = BodyLabel("采购品目", form_card)
@@ -189,8 +190,13 @@ class SearchPage(QWidget):
         if not keywords:
             InfoBar.warning("请先填写关键词", "每行一个关键词", parent=self.window())
             return
-        start = self.start_date.date().toString("yyyy-MM-dd")
-        end = self.end_date.date().toString("yyyy-MM-dd")
+        start_date = self.start_date.date
+        end_date = self.end_date.date
+        if not start_date.isValid() or not end_date.isValid():
+            InfoBar.warning("日期未设置", "请通过日历选择起止日期", parent=self.window())
+            return
+        start = start_date.toString("yyyy-MM-dd")
+        end = end_date.toString("yyyy-MM-dd")
         if start > end:
             InfoBar.warning("时间范围有误", "开始日期不能晚于结束日期",
                             parent=self.window())
@@ -262,9 +268,11 @@ class SearchPage(QWidget):
             return
         self.kw_edit.setPlainText(task["keywords"])
         if task["start_date"]:
-            self.start_date.setDate(QDate.fromString(task["start_date"], "yyyy-MM-dd"))
+            self.start_date.setDate(
+                QDate.fromString(task["start_date"], "yyyy-MM-dd"))
         if task["end_date"]:
-            self.end_date.setDate(QDate.fromString(task["end_date"], "yyyy-MM-dd"))
+            self.end_date.setDate(
+                QDate.fromString(task["end_date"], "yyyy-MM-dd"))
         nature = task["purchase_nature"]
         idx = self.nature_combo.findData(nature)
         if idx >= 0:
