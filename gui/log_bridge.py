@@ -14,7 +14,9 @@ from pathlib import Path
 from loguru import logger
 from PySide6.QtCore import QObject, Signal
 
-APP_DIR = Path(__file__).resolve().parent.parent
+from gui.frozen import app_root
+
+APP_DIR = app_root()
 LOG_DIR = APP_DIR / "logs"
 
 _FILE_FMT = "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"

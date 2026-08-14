@@ -6,9 +6,10 @@ import json
 import threading
 from pathlib import Path
 
+from gui.frozen import app_root
 from fujian_zfcg_search import DEFAULT_NOTICE_TYPE
 
-APP_DIR = Path(__file__).resolve().parent.parent
+APP_DIR = app_root()
 DATA_DIR = APP_DIR / "data"
 EXPORT_DIR = DATA_DIR / "exports"
 CONFIG_PATH = DATA_DIR / "settings.json"

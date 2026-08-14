@@ -11,7 +11,9 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
-APP_DIR = Path(__file__).resolve().parent.parent
+from gui.frozen import app_root
+
+APP_DIR = app_root()
 DATA_DIR = APP_DIR / "data"
 DB_PATH = DATA_DIR / "app.db"
 

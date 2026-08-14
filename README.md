@@ -94,3 +94,25 @@ gui/
 
 > 提示：核心检索逻辑仍复用 `fujian_zfcg_search.py`，CLI 用法不变；
 > GUI 版为其新增了 `should_stop` 回调参数以支持界面上的「停止」按钮。
+
+## 五、打包为免安装 exe（Windows）
+
+用 PyInstaller 将 GUI 打包为单文件 exe，目标机器无需安装 Python：
+
+```bash
+python -m pip install pyinstaller
+python -m PyInstaller --noconfirm --clean fujian_zfcg_gui.spec
+```
+
+产物为 `dist/福建政府采购公告采集器.exe`（双击即用），旁边附 `使用说明.txt`。
+
+要点：
+
+- **单文件 + 无控制台**：`console=False` 的 onefile 构建；
+- **验证码模型**：通过 `collect_all('ddddocr')` 把 `common*.onnx` 模型打进 exe；
+- **Fluent 控件**：通过 `collect_all('qfluentwidgets')` 收集图标/主题资源；
+- **数据目录**：打包后 `data/`、`logs/` 自动生成在 exe 旁边
+  （`gui/frozen.py` 统一解析根目录，避免写入临时解压目录导致丢失）；
+- **体积控制**：排除未用到的 Qt 重型模块（WebEngine / Quick / Multimedia 等）。
+
+> 首次启动需解压内置运行库（约 10~30 秒），属正常现象。
