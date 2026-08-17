@@ -28,8 +28,8 @@ from gui.table_model import COL_WIDTHS, NoticeTableModel
 from gui.workers import SearchWorker
 from qfluentwidgets import (BodyLabel, CaptionLabel, CardWidget, ComboBox,
                             FastCalendarPicker, FluentIcon, InfoBar,
-                            InfoBarPosition, PrimaryPushButton, ProgressBar,
-                            PushButton, SpinBox, StateToolTip,
+                            InfoBarPosition, LineEdit, PrimaryPushButton,
+                            ProgressBar, PushButton, SpinBox, StateToolTip,
                             StrongBodyLabel, TableView, TextBrowser, TextEdit)
 
 # 公告类型预设：text -> codes；None 表示取设置页里的自定义编码
@@ -101,6 +101,12 @@ class SearchPage(QWidget):
         kw_cell_layout.addWidget(self.kw_hint)
         self.kw_edit.textChanged.connect(self._update_kw_hint)
 
+        self.unit_label = BodyLabel("采购单位", form_card)
+        self.unit_edit = LineEdit(form_card)
+        self.unit_edit.setPlaceholderText(
+            "可选：按采购单位名称筛选，如：福建医科大学附属第一医院（与关键词至少填写一项）")
+        self.unit_edit.setClearButtonEnabled(True)
+
         self.start_label = BodyLabel("发布时间起", form_card)
         self.start_date = FastCalendarPicker(form_card)
         self.start_date.setDateFormat("yyyy-MM-dd")
@@ -133,18 +139,20 @@ class SearchPage(QWidget):
 
         grid.addWidget(self.kw_label, 0, 0)
         grid.addWidget(kw_cell, 0, 1, 1, 5)
-        grid.addWidget(self.start_label, 1, 0)
-        grid.addWidget(self.start_date, 1, 1)
-        grid.addWidget(self.end_label, 1, 2)
-        grid.addWidget(self.end_date, 1, 3)
-        grid.addWidget(self.nature_label, 1, 4)
-        grid.addWidget(self.nature_combo, 1, 5)
-        grid.addWidget(self.page_size_label, 2, 0)
-        grid.addWidget(self.page_size_spin, 2, 1)
-        grid.addWidget(self.max_pages_label, 2, 2)
-        grid.addWidget(self.max_pages_spin, 2, 3)
-        grid.addWidget(self.notice_type_label, 2, 4)
-        grid.addWidget(self.notice_type_combo, 2, 5)
+        grid.addWidget(self.unit_label, 1, 0)
+        grid.addWidget(self.unit_edit, 1, 1, 1, 5)
+        grid.addWidget(self.start_label, 2, 0)
+        grid.addWidget(self.start_date, 2, 1)
+        grid.addWidget(self.end_label, 2, 2)
+        grid.addWidget(self.end_date, 2, 3)
+        grid.addWidget(self.nature_label, 2, 4)
+        grid.addWidget(self.nature_combo, 2, 5)
+        grid.addWidget(self.page_size_label, 3, 0)
+        grid.addWidget(self.page_size_spin, 3, 1)
+        grid.addWidget(self.max_pages_label, 3, 2)
+        grid.addWidget(self.max_pages_spin, 3, 3)
+        grid.addWidget(self.notice_type_label, 3, 4)
+        grid.addWidget(self.notice_type_combo, 3, 5)
         form_box.addLayout(grid)
         layout.addWidget(form_card)
 
@@ -214,8 +222,10 @@ class SearchPage(QWidget):
         if self.worker is not None and self.worker.isRunning():
             return
         keywords = parse_keywords(self.kw_edit.toPlainText())
-        if not keywords:
-            InfoBar.warning("请先填写关键词", "每行一个关键词", parent=self.window())
+        purchaser = self.unit_edit.text().strip()
+        if not keywords and not purchaser:
+            InfoBar.warning("请填写检索条件", "关键词与采购单位至少填写一项",
+                            parent=self.window())
             return
         start_date = self.start_date.date
         end_date = self.end_date.date
@@ -231,6 +241,7 @@ class SearchPage(QWidget):
 
         task_id = self.db.create_task(
             keywords="\n".join(keywords),
+            purchaser=purchaser,
             start_date=start, end_date=end,
             purchase_nature=self.nature_combo.currentData(),
             page_size=self.page_size_spin.value(),
@@ -247,6 +258,7 @@ class SearchPage(QWidget):
             page_size=self.page_size_spin.value(),
             max_pages=self.max_pages_spin.value(),
             notice_type=self._current_notice_type(),
+            purchaser=purchaser,
             db=self.db, parent=self,
         )
         worker.keyword_progress.connect(self._on_keyword_progress)
@@ -256,15 +268,17 @@ class SearchPage(QWidget):
         self.worker = worker
 
         self._done_keywords = 0
-        self._total_keywords = len(keywords)
+        self._total_keywords = len(keywords) or 1
         self.progress_bar.setValue(0)
-        self.progress_label.setText(f"0 / {self._total_keywords} 个关键词")
+        self.progress_label.setText(
+            f"0 / {self._total_keywords} 个检索条件")
         self.status_label.setText(f"任务 #{task_id} 运行中…")
         self._set_running(True)
         self._state_tooltip = StateToolTip("正在检索", "正在请求公告数据……", self.window())
         self._state_tooltip.show()
-        logger.info("创建任务 #{id}，关键词 {n} 个：{kws}",
-                    id=task_id, n=len(keywords), kws=keywords)
+        logger.info("创建任务 #{id}，关键词 {n} 个：{kws}，采购单位：{unit}",
+                    id=task_id, n=len(keywords), kws=keywords,
+                    unit=purchaser or "全部")
         worker.start()
 
     def _on_stop(self) -> None:
@@ -292,7 +306,7 @@ class SearchPage(QWidget):
         count = len(parse_keywords(self.kw_edit.toPlainText()))
         self.kw_hint.setText(
             f"已识别 {count} 个关键词（每行一个，也支持逗号/顿号分隔，"
-            f"逐个检索后合并去重）")
+            f"逐个检索后合并去重；也可不填关键词，仅按下方采购单位检索）")
 
     def load_task_params(self, task_id: int) -> None:
         """从历史任务回填检索表单（用于「重新检索」）。"""
@@ -300,6 +314,7 @@ class SearchPage(QWidget):
         if not task:
             return
         self.kw_edit.setPlainText(task["keywords"])
+        self.unit_edit.setText(task.get("purchaser") or "")
         if task["start_date"]:
             self.start_date.setDate(
                 QDate.fromString(task["start_date"], "yyyy-MM-dd"))
@@ -335,7 +350,7 @@ class SearchPage(QWidget):
         percent = int(self._done_keywords * 100 / max(self._total_keywords, 1))
         self.progress_bar.setValue(percent)
         self.progress_label.setText(
-            f"{self._done_keywords} / {self._total_keywords} 个关键词")
+            f"{self._done_keywords} / {self._total_keywords} 个检索条件")
         if self._state_tooltip is not None:
             self._state_tooltip.setContent(
                 f"「{keyword}」命中 {total} 条，已取 {fetched} 条")

@@ -16,7 +16,7 @@ from gui.table_model import NoticeTableModel
 from qfluentwidgets import (BodyLabel, FluentIcon, InfoBar, MessageBox,
                             PrimaryPushButton, PushButton, TableView)
 
-_TASK_HEADERS = ["ID", "创建时间", "状态", "关键词", "命中", "入库", "错误"]
+_TASK_HEADERS = ["ID", "创建时间", "状态", "采购单位", "关键词", "命中", "入库", "错误"]
 _STATUS_TEXT = {
     "running": "运行中", "success": "成功", "failed": "失败", "stopped": "已停止",
 }
@@ -58,18 +58,21 @@ class TasksTableModel(QAbstractTableModel):
             if col == 2:
                 return _STATUS_TEXT.get(task["status"], task["status"])
             if col == 3:
+                unit = task.get("purchaser") or ""
+                return unit if len(unit) <= 40 else unit[:40] + "…"
+            if col == 4:
                 kws = (task["keywords"] or "").replace("\n", "、")
                 return kws if len(kws) <= 60 else kws[:60] + "…"
-            if col == 4:
-                return task["total_found"]
             if col == 5:
-                return task["saved_count"]
+                return task["total_found"]
             if col == 6:
+                return task["saved_count"]
+            if col == 7:
                 return task.get("error") or ""
         if role == Qt.ItemDataRole.ForegroundRole and col == 2:
             from PySide6.QtGui import QColor
             return QColor(_STATUS_COLOR.get(task["status"], "#8e8e93"))
-        if role == Qt.ItemDataRole.TextAlignmentRole and col in (0, 4, 5):
+        if role == Qt.ItemDataRole.TextAlignmentRole and col in (0, 5, 6):
             return int(Qt.AlignmentFlag.AlignCenter)
         return None
 
@@ -83,8 +86,8 @@ class TasksTableModel(QAbstractTableModel):
     def sort(self, column: int, order=Qt.SortOrder.AscendingOrder) -> None:
         self.layoutAboutToBeChanged.emit()
         reverse = order == Qt.SortOrder.DescendingOrder
-        keys = ["id", "created_at", "status", "keywords", "total_found",
-                "saved_count", "error"]
+        keys = ["id", "created_at", "status", "purchaser", "keywords",
+                "total_found", "saved_count", "error"]
         self._tasks.sort(key=lambda t: str(t.get(keys[column], "")), reverse=reverse)
         self.layoutChanged.emit()
 
@@ -127,9 +130,9 @@ class HistoryPage(QWidget):
         self.tasks_table.verticalHeader().hide()
         th = self.tasks_table.horizontalHeader()
         th.setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        for col, width in enumerate([60, 150, 70, 320, 60, 60, 160]):
+        for col, width in enumerate([60, 150, 70, 180, 280, 60, 60, 160]):
             self.tasks_table.setColumnWidth(col, width)
-        th.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        th.setSectionResizeMode(4, QHeaderView.ResizeMode.Stretch)
         self.tasks_model = TasksTableModel(self.tasks_table)
         self.tasks_table.setModel(self.tasks_model)
         self.tasks_table.selectionModel().selectionChanged.connect(

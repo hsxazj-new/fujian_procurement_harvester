@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""福建政府采购网公告采集器 - GUI 入口。
+"""福建省政府采购网招投标公告采集器 - GUI 入口。
 
 用法（在项目根目录）：
     python -m gui.main
@@ -28,8 +28,8 @@ def main() -> int:
         pass
 
     app = QApplication(sys.argv)
-    app.setApplicationName("福建政府采购公告采集器")
-    app.setApplicationDisplayName("福建政府采购公告采集器")
+    app.setApplicationName("福建省政府采购网招投标公告采集器")
+    app.setApplicationDisplayName("福建省政府采购网招投标公告采集器")
     app.setOrganizationName("fujian_zfcg")
 
     setup_logging(console=False)

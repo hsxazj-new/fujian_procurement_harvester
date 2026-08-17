@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """SQLite 数据层：持久化检索任务与公告结果。
 
-- search_tasks : 一次检索任务（关键词、时间范围、品目、分页、状态）
+- search_tasks : 一次检索任务（关键词、采购单位、时间范围、品目、分页、状态）
 - notices      : 检索到的公告明细，按 (task_id, notice_time, title) 去重
 """
 from __future__ import annotations
@@ -21,6 +21,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS search_tasks (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
     keywords        TEXT    NOT NULL,
+    purchaser       TEXT    NOT NULL DEFAULT '',
     start_date      TEXT    NOT NULL DEFAULT '',
     end_date        TEXT    NOT NULL DEFAULT '',
     purchase_nature TEXT    NOT NULL DEFAULT '3',
@@ -78,21 +79,31 @@ class Database:
             self._conn.execute("PRAGMA foreign_keys = ON")
             self._conn.execute("PRAGMA journal_mode = WAL")
             self._conn.executescript(_SCHEMA)
+            self._migrate()
             self._conn.commit()
+
+    def _migrate(self) -> None:
+        """旧库升级：为 search_tasks 补充新增列（ALTER TABLE ADD COLUMN）。"""
+        cols = {row["name"] for row in
+                self._conn.execute("PRAGMA table_info(search_tasks)").fetchall()}
+        if "purchaser" not in cols:
+            self._conn.execute(
+                "ALTER TABLE search_tasks ADD COLUMN purchaser TEXT NOT NULL DEFAULT ''")
 
     # ---------- 任务 ----------
 
-    def create_task(self, *, keywords: str, start_date: str, end_date: str,
+    def create_task(self, *, keywords: str, purchaser: str = "",
+                    start_date: str, end_date: str,
                     purchase_nature: str, page_size: int, max_pages: int,
                     notice_type: str) -> int:
         with self._lock:
             cur = self._conn.execute(
                 """INSERT INTO search_tasks
-                   (keywords, start_date, end_date, purchase_nature, page_size,
-                    max_pages, notice_type, status, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                (keywords, start_date, end_date, purchase_nature, page_size,
-                 max_pages, notice_type, STATUS_RUNNING, now_str()),
+                   (keywords, purchaser, start_date, end_date, purchase_nature,
+                    page_size, max_pages, notice_type, status, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (keywords, purchaser, start_date, end_date, purchase_nature,
+                 page_size, max_pages, notice_type, STATUS_RUNNING, now_str()),
             )
             self._conn.commit()
             return cur.lastrowid

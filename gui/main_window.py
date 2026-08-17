@@ -22,7 +22,7 @@ class MainWindow(FluentWindow):
 
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("福建政府采购公告采集器")
+        self.setWindowTitle("福建省政府采购网招投标公告采集器")
         self.setMinimumSize(1080, 720)
 
         self.db = get_db()

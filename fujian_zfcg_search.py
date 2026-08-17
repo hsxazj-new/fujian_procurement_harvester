@@ -9,6 +9,8 @@
     python fujian_zfcg_search.py --keywords 档案数字化 病案数字化 档案电子化 档案整理
     python fujian_zfcg_search.py --keywords 档案数字化 --start 2026-01-01 --end 2026-12-31 --out 结果.csv
     python fujian_zfcg_search.py --keywords 档案整理 --page-size 20 --max-pages 2
+    python fujian_zfcg_search.py --unit 福建医科大学附属第一医院 --keywords 病案翻拍 病历
+    python fujian_zfcg_search.py --unit 福建医科大学附属第一医院 --start 2023-01-01 --end 2026-12-31
 """
 
 import argparse
@@ -124,13 +126,14 @@ class FujianZfcg:
         return "".join(ch for ch in code if ch.isalnum())
 
     # ---------- 公告检索 ----------
-    def search(self, keyword: str, *, start: str = "", end: str = "",
+    def search(self, keyword: str = "", *, start: str = "", end: str = "",
                purchase_nature: str = "3", channel: str = DEFAULT_CHANNEL,
                page_size: int = 10, max_pages: int = 1,
                notice_type: str = DEFAULT_NOTICE_TYPE, retry: int = 8,
-               should_stop=None) -> dict:
-        """按标题关键词检索公告，返回 {keyword, total, rows}。
+               purchaser: str = "", should_stop=None) -> dict:
+        """按标题关键词/采购单位检索公告，返回 {keyword, purchaser, total, rows}。
 
+        purchaser: 采购单位名称，按单位筛选（如：福建医科大学附属第一医院）。
         should_stop: 可选回调，返回 True 时提前结束翻页（GUI 停止按钮使用）。
         """
         site_id = self.get_site_id()
@@ -145,7 +148,7 @@ class FujianZfcg:
             "title": keyword,
             "region": "", "regionCode": "", "cityOrArea": "",
             "purchaseManner": "", "openTenderCode": "",
-            "purchaser": "", "agency": "",
+            "purchaser": purchaser, "agency": "",
             "operationStartTime": start, "operationEndTime": end,
             "verifyCode": "", "selectTimeName": "",
         }
@@ -162,12 +165,15 @@ class FujianZfcg:
                     break
                 time.sleep(0.5)
             else:
-                raise RuntimeError(f"验证码重试 {retry} 次仍失败（关键词：{keyword}）")
+                raise RuntimeError(
+                    f"验证码重试 {retry} 次仍失败（关键词：{keyword or '全部'}，"
+                    f"单位：{purchaser or '全部'}）")
             total = data["data"]["total"]
             rows.extend(data["data"]["rows"])
             if page >= (total + page_size - 1) // page_size:
                 break
-        return {"keyword": keyword, "total": total, "rows": rows}
+        return {"keyword": keyword, "purchaser": purchaser,
+                "total": total, "rows": rows}
 
     @staticmethod
     def detail_url(row: dict) -> str:
@@ -188,8 +194,10 @@ def save_csv(records: list, out_path: str) -> None:
 
 def main():
     parser = argparse.ArgumentParser(description="福建省政府采购网公告查询（档案/服务类）")
-    parser.add_argument("--keywords", nargs="+", required=True,
-                        help="标题关键词，如：档案数字化 病案数字化 档案电子化 档案整理")
+    parser.add_argument("--keywords", nargs="+", default=[],
+                        help="标题关键词，如：档案数字化 病案数字化 档案电子化 档案整理（与 --unit 至少填一个）")
+    parser.add_argument("--unit", default="",
+                        help="采购单位名称，如：福建医科大学附属第一医院（与 --keywords 至少填一个）")
     parser.add_argument("--start", default="2026-01-01", help="发布时间起，如 2026-01-01")
     parser.add_argument("--end", default="2026-12-31", help="发布时间止，如 2026-12-31")
     parser.add_argument("--purchase-nature", default="3", choices=["1", "2", "3"],
@@ -201,17 +209,23 @@ def main():
     parser.add_argument("--out", default="结果.csv", help="输出 CSV 文件路径")
     args = parser.parse_args()
 
+    if not args.keywords and not args.unit:
+        parser.error("--keywords 与 --unit 至少指定一个")
+
     start_dt = f"{args.start} 00:00:00" if args.start else ""
     end_dt = f"{args.end} 23:59:59" if args.end else ""
 
     client = FujianZfcg()
     records, seen = [], set()
-    for kw in args.keywords:
+    queries = args.keywords or [""]
+    for kw in queries:
         result = client.search(kw, start=start_dt, end=end_dt,
                                purchase_nature=args.purchase_nature,
                                notice_type=args.notice_type,
-                               page_size=args.page_size, max_pages=args.max_pages)
-        print(f"[{kw}] 命中 {result['total']} 条，已取 {len(result['rows'])} 条")
+                               page_size=args.page_size, max_pages=args.max_pages,
+                               purchaser=args.unit)
+        print(f"[关键词:{kw or '全部'} | 单位:{args.unit or '全部'}] "
+              f"命中 {result['total']} 条，已取 {len(result['rows'])} 条")
         for r in result["rows"]:
             key = (r["noticeTime"], r["title"])
             if key in seen:

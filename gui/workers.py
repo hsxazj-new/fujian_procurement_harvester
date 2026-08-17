@@ -47,15 +47,18 @@ class SearchWorker(QThread):
 
     def __init__(self, task_id: int, keywords: list[str], *, start: str, end: str,
                  purchase_nature: str, page_size: int, max_pages: int,
-                 notice_type: str, db: Database, parent=None):
+                 notice_type: str, purchaser: str = "", db: Database,
+                 parent=None):
         super().__init__(parent)
         self.task_id = task_id
         self.keywords = [k.strip() for k in keywords if k and k.strip()]
+        self.purchaser = (purchaser or "").strip()
         self.search_kwargs = {
             "start": start, "end": end,
             "purchase_nature": purchase_nature,
             "page_size": page_size, "max_pages": max_pages,
             "notice_type": notice_type,
+            "purchaser": self.purchaser,
         }
         self.db = db
         self._stop_flag = threading.Event()
@@ -72,18 +75,22 @@ class SearchWorker(QThread):
     # ---------- 执行 ----------
 
     def run(self) -> None:  # noqa: D401
-        logger.info("后台任务 #{id} 启动：关键词={kw}", id=self.task_id, kw=self.keywords)
+        logger.info("后台任务 #{id} 启动：关键词={kw}，单位={unit}",
+                    id=self.task_id, kw=self.keywords, unit=self.purchaser or "全部")
         client = FujianZfcg()
         total_found = 0
         total_saved = 0
         stopped = False
         try:
-            for kw in self.keywords:
+            # 仅填了采购单位、没填关键词时，等价于“关键词=全部”检索一次
+            queries = self.keywords or [""]
+            for kw in queries:
                 if self._should_stop():
                     stopped = True
                     logger.warning("任务 #{id} 收到停止请求，提前结束", id=self.task_id)
                     break
-                logger.info("▶ [{kw}] 开始检索……", kw=kw)
+                display_kw = kw or "（全部）"
+                logger.info("▶ [{kw}] 开始检索……", kw=display_kw)
                 result = client.search(kw, should_stop=self._should_stop,
                                        **self.search_kwargs)
                 rows = result["rows"]
@@ -97,11 +104,11 @@ class SearchWorker(QThread):
 
                 self.db.update_task(self.task_id, total_found=total_found,
                                     saved_count=total_saved)
-                self.keyword_progress.emit(kw, result["total"], len(rows))
+                self.keyword_progress.emit(display_kw, result["total"], len(rows))
                 logger.info(
                     "✔ [{kw}] 命中 {total} 条，本次入库 {saved} 条"
                     "（累计去重后 {total_saved} 条）",
-                    kw=kw, total=result["total"], saved=saved_now,
+                    kw=display_kw, total=result["total"], saved=saved_now,
                     total_saved=total_saved)
 
             status = STATUS_STOPPED if stopped else STATUS_SUCCESS
